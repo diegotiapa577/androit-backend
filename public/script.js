@@ -6,7 +6,7 @@ let historialVelas = []; // ← Guarda las velas cerradas completas
 let precios = [], modelo = null;
 let chart = null;
 let dataSeries = null;
-let capitalInicial = 1000, capitalActual = 1000;
+let capitalInicial = 200, capitalActual = 200;
 let operaciones = [], ultimoPrecio = 0, streamingInterval = null;
 window.simboloActual = 'SOLUSDT'; // o el que quieras por defecto
 let symbolInfo = null;
@@ -564,7 +564,7 @@ function retryInitChart(attempts = 0) {
 }
 
 // === DATOS ===
-async function obtenerDatos(symbol , interval = '5m', limit = 60) {
+async function obtenerDatos(symbol , interval = '1m', limit = 60) {
   const res = await fetch(`/api/binance/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`);
   if (!res.ok) throw new Error(`Error: ${res.status}`);
   const klines = await res.json();
@@ -995,8 +995,8 @@ async function entrenarRed() {
 
   // Definir símbolos a usar para entrenamiento
   const SIMBOLOS_ENTRENAMIENTO = ['SOLUSDT'];
-  const INTERVALO = '5m'; //  1m
-  const LIMITE_DATOS = 10000; // Ajusta este número. Por ejemplo, 15000 velas de 4h por símbolo
+  const INTERVALO = '1m'; //  1m
+  const LIMITE_DATOS = 9000; // Ajusta este número. Por ejemplo, 15000 velas de 4h por símbolo
   const VELAS_FUTURAS = 3;
   const EPOCAS = 50;
   const BATCH_SIZE = 32;
@@ -1765,14 +1765,13 @@ function ocultarLineasPrecios() {
 
 // === ÓRDENES ===
 async function abrirPosicionReal(side) {
-  //if (!AUTENTICADO) return;
   try {
     
     const simbolo = document.getElementById('selector-simbolo').value;
     const ticker = await (await fetch(`/api/binance/ticker?symbol=${simbolo}`)).json();
     const precio = parseFloat(ticker.price);
-    let monto = parseFloat(document.getElementById('montoCompra').value) || 100;
-    if (monto < 100) monto = 100;
+    let monto = parseFloat(document.getElementById('montoCompra').value) || 20;
+    if (monto < 20) monto = 20;
     let qty = symbolInfo ? calculateQuantity(precio, monto) : Math.floor((monto / precio) / 0.001) * 0.001;
     const lev = parseInt(document.getElementById('apalancamiento').value) || 2;
     console.log(`🔍 [DEBUG] Monto deseado: $${monto}`);
@@ -1792,7 +1791,7 @@ async function abrirPosicionReal(side) {
       
       // Obtener ATR reciente (mismo que usas en otros lugares)
       const simbolo = document.getElementById('selector-simbolo').value;
-      const k5m = await obtenerDatos(simbolo, '5m', 50);
+      const k5m = await obtenerDatos(simbolo, '1m', 50);
      
       const atrArr = k5m.length >= 20 ? calcularATR(k5m, 14):[];
       const atrVal = atrArr.length > 0 ? atrArr[atrArr.length - 1] : 0;
@@ -2237,7 +2236,7 @@ function evaluarAperturaReversion(simbolo, prediccionRaw, indicadores, historial
   const estadoDiv = document.getElementById('estado-reversion');
 
   // ─── UMBRALES DE PRUEBA ───
-  const UMBRAL_IA = 0.60;
+  const UMBRAL_IA = 0.65;
   const UMBRAL_RSI_MIN = 20;
   const UMBRAL_RSI_MAX = 80;
  // AHORA (suave para pruebas):
@@ -2385,7 +2384,7 @@ function ejecutarApertura(side, simbolo, modoAuto, btnOperar, estadoDiv, signalA
 
   // En la sección de confirmación (antes de if (modoAuto))
   console.log(`[DEBUG] Confirmando apertura: side=${side}, signal=${signalActual}, modoAuto=${modoAuto}`);
-  console.log(`[DEBUG] ordenEnCurso=${ordenEnCurso}, posicionActual=`, posicionActual);
+  console.log(`[DEBUG] posicionActual=`, posicionActual);
   console.log(`[DEBUG] Zona válida: ${side === 'BUY' ? (signalActual < -60) : (signalActual > 60)}`);
    
    
@@ -2676,32 +2675,28 @@ function actualizarMonitorMACD() {
   // ───────────────────────────────────────
   let porcentaje;
 
-  if (signalActual < -0.0355) {
-    // Mapear –0.1 a –0.0355 → 0% a 30%
-    const rango = -0.0355 - (-0.8); // 0.0545
-    const rel = Math.max(0, signalActual - (-0.8));
-    porcentaje = (rel / rango) * 30;
-  } else if (signalActual > 0.0355) {
-    // Mapear +0.0355 a +0.1 → 70% a 100%
-    const rango = 0.8 - 0.0355; // 0.0545
-    const rel = Math.min(rango, signalActual - 0.0355);
-    porcentaje = 70 + (rel / rango) * 30;
-  } else if (signalActual <= -0.8) {
-    // –0.0355 a –0.01 → 30% a 45%
-    const rango = -0.8 - (-0.0355); // 0.0355
-    const rel = signalActual - (-0.0355);
-    porcentaje = 30 + (rel / rango) * 15;
-  } else if (signalActual >= 0.8) {
-    // +0.01 a +0.0355 → 55% a 70%
-    const rango = 0.0355 - 0.8; // 0.0355
-    const rel = signalActual - 0.8;
-    porcentaje = 55 + (rel / rango) * 15;
-  } else {
-    // –0.01 a +0.01 → 45% a 55%
-    const rango = 0.08;
-    const rel = signalActual + 0.8;
-    porcentaje = 45 + (rel / rango) * 10;
-  }
+if (signalActual <= -2) {
+  // –0.0355 a –0.01 → 30% a 45% (ajustado para extremo -2)
+  porcentaje = 0;
+} else if (signalActual >= 2) {
+  // +0.01 a +0.0355 → 55% a 70% (ajustado para extremo +2)
+  porcentaje = 100;
+} else if (signalActual < -0.05) {
+  // Mapear -2 a -0.05 → 0% a 45%
+  const rango = -0.05 - (-2); // 1.95
+  const rel = Math.max(0, signalActual - (-2));
+  porcentaje = (rel / rango) * 45;
+} else if (signalActual > 0.05) {
+  // Mapear 0.05 a 2 → 55% a 100%
+  const rango = 2 - 0.05;   // 1.95
+  const rel = Math.min(rango, signalActual - 0.05);
+  porcentaje = 55 + (rel / rango) * 45;
+} else {
+  // –0.01 a +0.01 → 45% a 55%
+  const rango = 0.05 - (-0.05); // 0.10
+  const rel = signalActual - (-0.05);
+  porcentaje = 45 + (rel / rango) * 10;
+}
 
   const porcentajeClamped = Math.max(0, Math.min(100, porcentaje));
   indicadorEl.style.left = `${porcentajeClamped}%`;
@@ -3023,11 +3018,11 @@ if (notifActiva && (ahora - ultimaNotifGauss) >= INTERVALO_NOTIF) {
 
   // ─── ZONA 1: ARRANQUE DE TENDENCIA ALCISTA ───
   const arranqueAlcista = 
-    (prediccionRaw >= 0.60) &&
+    (prediccionRaw >= 0.65) &&
     (adx > 25) &&
-    (atr > 0.06) &&
+    (atr > 0.1) &&
     (ema20 > ema50) &&
-    ((ema20 - ema50) / ema50 >= 0.0015) && // >1.5%
+    ((ema20 - ema50) / ema50 >= 0.001) && // >1.5%
 
     (macdActual > 0) &&
     (signalActual > 0);
@@ -3035,26 +3030,26 @@ if (notifActiva && (ahora - ultimaNotifGauss) >= INTERVALO_NOTIF) {
   // ─── ZONA 2: AGOTAMIENTO ALCISTA ───
   const agotamientoAlcista = 
     (adx < 25) &&
-    (Math.abs(ema20 - ema50) / ema50 <= 0.0005) && // <0.5%
-    (prediccionRaw <= 0.40) &&
+    (Math.abs(ema20 - ema50) / ema50 <= 0.0002) && // <0.5%
+    (prediccionRaw <= 0.35) &&
     (macdActual < 0) &&
     (signalActual < 0);
 
   // ─── ZONA 1: ARRANQUE DE TENDENCIA BAJISTA ───
   const arranqueBajista = 
-    (prediccionRaw <= 0.40) &&
+    (prediccionRaw <= 0.35) &&
     (adx > 25) &&
-    (atr > 0.06) &&
+    (atr > 0.1) &&
     (ema20 < ema50) &&
-    ((ema50 - ema20) / ema50 >= 0.0015) &&
+    ((ema50 - ema20) / ema50 >= 0.001) &&
     (macdActual < 0) &&
     (signalActual < 0);
 
   // ─── ZONA 2: AGOTAMIENTO BAJISTA ───
   const agotamientoBajista = 
     (adx < 30) &&
-    (Math.abs(ema20 - ema50) / ema50 <= 0.0005) &&
-    (prediccionRaw >= 0.60) &&
+    (Math.abs(ema20 - ema50) / ema50 <= 0.0002) &&
+    (prediccionRaw >= 0.65) &&
     (macdActual > 0) &&
     (signalActual > 0);
 
@@ -3109,9 +3104,17 @@ if (notifActiva && (ahora - ultimaNotifGauss) >= INTERVALO_NOTIF) {
     if (arranqueAlcista) {
       nuevaOrden = 'BUY';
       console.log('🟢 [GAUSS] Arranque alcista detectado');
+ // ✅ ENVIAR NOTIFICACIÓN DE ARRANQUE ALCISTA
+    const mensajeArranque = `🚀 <b>ARRANQUE ALCISTA DETECTADO</b>\nSímbolo: ${simbolo}\nPrecio: $${precioActual}\nConfianza: ${(prediccionRaw*100).toFixed(1)}%\nModo: ${modoAuto ? 'AUTO' : 'MANUAL'}`;
+    enviarTelegram(mensajeArranque);
+
     } else if (arranqueBajista) {
       nuevaOrden = 'SELL';
       console.log('🔴 [GAUSS] Arranque bajista detectado');
+      // ✅ ENVIAR NOTIFICACIÓN DE ARRANQUE BAJISTA  
+    const mensajeArranque = `🔻 <b>ARRANQUE BAJISTA DETECTADO</b>\nSímbolo: ${simbolo}\nPrecio: $${precioActual}\nConfianza: ${(prediccionRaw*100).toFixed(1)}%\nModo: ${modoAuto ? 'AUTO' : 'MANUAL'}`;
+    enviarTelegram(mensajeArranque);
+
     }
 
     if (nuevaOrden) {
@@ -3123,6 +3126,23 @@ if (notifActiva && (ahora - ultimaNotifGauss) >= INTERVALO_NOTIF) {
       };
       window.sideActual = nuevaOrden === 'BUY' ? 'LONG' : 'SHORT';
 
+     // Calcular SL y TP según tus parámetros
+    //const slPips = document.getElementById('stopLoss');
+    //const tpPips = document.getElementById('takeProfit');
+
+    const tpPips  = parseFloat(document.getElementById('takeProfit')?.value) || 5;
+    const slPips = parseFloat(document.getElementById('stopLoss')?.value) || 3;
+
+    const slPrecio = nuevaOrden === 'BUY' 
+      ? precioActual * (1 - slPips/100) 
+      : precioActual * (1 + slPips/100);
+    const tpPrecio = nuevaOrden === 'BUY' 
+      ? precioActual * (1 + tpPips/100) 
+      : precioActual * (1 - tpPips/100);
+
+    // ✅ MENSAJE DE ORDEN MONTADA
+    const mensajeOrden = `📊 <b>ORDEN MONTADA - GAUSS</b>\n${nuevaOrden} ${simbolo}\nEntrada: $${precioActual.toFixed(2)}\nSL: $${slPrecio.toFixed(2)} (${slPips}%)\nTP: $${tpPrecio.toFixed(2)} (${tpPips}%)\nLeverage: 2x\nCapital: $200\nModo: ${modoAuto ? 'AUTOMÁTICO' : 'MANUAL'}`;
+    enviarTelegram(mensajeOrden);
       // Abrir posición
       if (modoAuto) {
         ordenEnCurso = true;
@@ -3140,6 +3160,9 @@ if (notifActiva && (ahora - ultimaNotifGauss) >= INTERVALO_NOTIF) {
           btnAbrir.style.display = 'inline-block';
           btnAbrir.onclick = () => {
             ordenEnCurso = true;
+           // ✅ ENVIAR CONFIRMACIÓN DE EJECUCIÓN MANUAL
+          const mensajeEjecucion = `✅ <b>ORDEN EJECUTADA MANUALMENTE</b>\n${nuevaOrden} ${simbolo}\nPrecio: $${precioActual.toFixed(2)}`;
+          enviarTelegram(mensajeEjecucion);
             abrirPosicionReal(nuevaOrden)
               .finally(() => {
                 ordenEnCurso = false;
@@ -3189,8 +3212,8 @@ console.log("🔍 [DEBUG] Valores reales antes del if:", {
 });
 
 if (prediccionRaw != null && 
-    confianza >= 0.60 && 
-    adxActual >= 20 && 
+    confianza >= 0.65 && 
+    adxActual >= 25 && 
     historialVelas.length >= 55 && 
     !ordenEnCurso) {
 
@@ -3260,7 +3283,7 @@ if (prediccionRaw != null &&
     } else {
       // 🔍 [DIAGNÓSTICO 4] ¿Cuál condición falló?
       if (prediccionRaw == null) console.log(`❌ Falló: prediccionRaw es null`);
-      if (confianza < 0.63) console.log(`❌ Falló: confianza baja (${(confianza * 100).toFixed(1)}%)`);
+      if (confianza < 0.65) console.log(`❌ Falló: confianza baja (${(confianza * 100).toFixed(1)}%)`);
       if (historialVelas.length < 55) console.log(`❌ Falló: velas insuficientes (${historialVelas.length}/55)`);
       if (ordenEnCurso) console.log(`❌ Falló: ordenEnCurso = true`);
     }
@@ -3368,8 +3391,8 @@ function actualizarSemaforo({ adx = 0,emaActual=0,rsiActual=50,atrActual=0.001, 
   // ✅ Evaluar condicione0
   const adxOk = adx >= 25;
   const datosOk = preciosLen >= 55;
-  const predOk = confianza >= 0.60;
-  const atrok = atrActual >= 0.06;
+  const predOk = confianza >= 0.65;
+  const atrok = atrActual >= 0.1;
 
   let modoOk = false;
   if (modo === 'alcista') modoOk = alcista;
@@ -3474,14 +3497,14 @@ async function iniciarStreaming() {
     estadoEl.style.fontWeight = 'bold';
   }
 
-  const ws = new WebSocket('wss://stream.binance.com:9443/ws/solusdt@kline_5m');
+  const ws = new WebSocket('wss://stream.binance.com:9443/ws/solusdt@kline_1m');
 
   ws.onopen = () => {
    
     console.log('🟢 ¡CONEXIÓN EXITOSA! WebSocket abierto.');
 
     if (estadoEl) {
-      estadoEl.textContent = '📡 Conectado. Esperando vela cerrada (5m)...';
+      estadoEl.textContent = '📡 Conectado. Esperando vela cerrada (1m)...';
       estadoEl.style.color = '#2196F3';
     }
   };
@@ -3645,7 +3668,7 @@ ws.onmessage = async (event) => {
       console.log(`[DIAGNÓSTICO WS] ultimoPrecio calculado: ${ultimoPrecio} (typeof: ${typeof ultimoPrecio}, isNaN: ${isNaN(ultimoPrecio)})`);
        
        const simbolo = document.getElementById('selector-simbolo').value;
-      const k5m = await obtenerDatos(simbolo, '5m', 50);
+      const k5m = await obtenerDatos(simbolo, '1m', 50);
      
 
       // ✅ Calcular indicadores técnicos (últimos valores de los arrays)
@@ -3864,13 +3887,13 @@ ws.onmessage = async (event) => {
         if (porcEl) porcEl.textContent = `${Math.round(confianza * 100)}%`;
         if (progEl) {
           progEl.style.width = `${Math.round(confianza * 100)}%`;
-          progEl.style.backgroundColor = confianza >= 0.60 ? (dir === 'SUBIDA' ? '#26a69a' : '#ef5350') : '#666';
+          progEl.style.backgroundColor = confianza >= 0.65 ? (dir === 'SUBIDA' ? '#26a69a' : '#ef5350') : '#666';
         }
       }
 
         const direccion = prediccionRaw > 0.5 ? 'SUBIDA' : 'BAJADA';
         const VELAS_FUTURAS = 3; // ajusta según tu modelo
-        const confianzaMinima = 0.60; // 65%
+        const confianzaMinima = 0.65; // 65%
         if (confianza >= confianzaMinima || confianza <= (1 - confianzaMinima)) {
          console.log(`🧠 Predicción fuerte: ${direccion} (${(confianza * 100).toFixed(1)}%)`);
 
@@ -4070,7 +4093,7 @@ ws.onmessage = async (event) => {
               // Dinámico: basado en ATR (sin leverage para precios)
               try {
                 const simbolo = document.getElementById('selector-simbolo').value;
-                const k5m = await obtenerDatos(simbolo, '5m', 50);
+                const k5m = await obtenerDatos(simbolo, '1m', 50);
                 if (k5m.length >= 20) {
                   const atrArray = calcularATR(k5m, 14);
                   const atrVal = atrArray .length > 0 ? atrArray [atrArray .length - 1] : 0;// fallback razonable
@@ -4284,7 +4307,7 @@ ws.onmessage = async (event) => {
             } else {
               try {
                 const simbolo = document.getElementById('selector-simbolo').value;
-                const k5m = await obtenerDatos(simbolo, '5m', 50);
+                const k5m = await obtenerDatos(simbolo, '1m', 50);
                 if (k5m.length >= 20) {
                   const atrArray = calcularATR(k5m, 14);
                   const atrVal = atrArray.length > 0 ? atrArray[atrArray.length - 1] : 0;// fallback razonable
@@ -4506,7 +4529,7 @@ async function actualizarSaldoCuenta(tipoCuenta = 'testnet') {
   const capitalActual = parseFloat(localStorage.getItem(`${keyPrefix}capitalActual`)) || 
                        (tipoCuenta === 'mainnet' ? 0 : 1000);
   
-  const montoInvertir = parseFloat(document.getElementById('montoCompra')?.value) || 100;
+  const montoInvertir = parseFloat(document.getElementById('montoCompra')?.value) || 20;
   
   // ✅ Obtener precio BTC de forma segura
   let saldoBTC = 0;
@@ -4632,11 +4655,18 @@ async function actualizarPanelFinanciero(tipoCuenta = 'testnet') {
 
 
 // === PRUEBA MANUAL ===
+// === PRUEBA MANUAL ===
 async function operacionPrueba() {
- // if (!AUTENTICADO) return;
+  // if (!AUTENTICADO) return;
   const dir = document.getElementById('prediccion-direccion').textContent;
   const adxE = document.getElementById('adx1-valor');
   const adxActual = parseFloat(adxE?.textContent) || 0;
+  const simbolo = document.getElementById('selector-simbolo').value;
+  
+  // Obtener precio actual para posicionActual
+  const ticker = await (await fetch(`/api/binance/ticker?symbol=${simbolo}`)).json();
+  const precioActual = parseFloat(ticker.price);
+  
   if (adxActual < 20) {
     const continuar = confirm(`⚠️ ADX: ${adxActual.toFixed(1)} (<20). ¿Forzar orden?`);
     if (!continuar) return;
@@ -4645,11 +4675,43 @@ async function operacionPrueba() {
     alert('⚠️ Sin señal clara de IA.');
     return;
   }
+  
   try {
-    if (dir.includes('SUBIDA')) await abrirPosicionReal('BUY');
-    else if (dir.includes('BAJADA')) await abrirPosicionReal('SELL');
+    // ✅ Actualizar ordenEnCurso antes de ejecutar
+     ordenEnCurso = true;
+    
+    if (dir.includes('SUBIDA')) {
+      await abrirPosicionReal('BUY');
+      // ✅ Actualizar estado global después de éxito
+      posicionActual = {
+        side: 'BUY',
+        simbolo: simbolo,
+        entrada: precioActual,
+        timestamp: Date.now()
+      };
+      window.sideActual = 'LONG';
+    }
+    else if (dir.includes('BAJADA')) {
+      await abrirPosicionReal('SELL');
+      // ✅ Actualizar estado global después de éxito
+      posicionActual = {
+        side: 'SELL',
+        simbolo: simbolo,
+        entrada: precioActual,
+        timestamp: Date.now()
+      };
+      window.sideActual = 'SHORT';
+    }
+    
+    // ✅ Enviar notificación Telegram
+    const mensaje = `✅ <b>ORDEN MANUAL EJECUTADA</b>\n${dir.includes('SUBIDA') ? 'BUY' : 'SELL'} ${simbolo}\nPrecio: $${precioActual.toFixed(2)}`;
+    enviarTelegram(mensaje);
+    
   } catch (err) {
     alert(`❌ ${err.message}`);
+  } finally {
+    // ✅ Siempre restablecer ordenEnCurso
+    ordenEnCurso = false;
   }
 }
 
@@ -4665,8 +4727,8 @@ async function ejecutarBacktesting() {
     const modo = document.getElementById('modo-mercado')?.value || 'volatil';
     const tpslMode = document.getElementById('tpsl-mode')?.value || 'dinamico';
     const leverage = parseInt(document.getElementById('apalancamiento')?.value) || 2;
-    const notional = parseFloat(document.getElementById('montoCompra')?.value) || 100;
-    const intervalo = document.getElementById('intervalo-backtest')?.value || '5m'; // ← Selector de intervalo
+    const notional = parseFloat(document.getElementById('montoCompra')?.value) || 20;
+    const intervalo = document.getElementById('intervalo-backtest')?.value || '1m'; // ← Selector de intervalo
     const adxUmbral = parseFloat(document.getElementById('adx-umbral')?.value) || 20; // ← Umbral ajustable
 
     // 🔹 Descargar datos reales
@@ -4762,7 +4824,7 @@ async function ejecutarBacktesting() {
         let cerrar = false, motivo = 'CloseOperation';
         if (roeRestante <= -sl) cerrar = true, motivo = `SL`;
         else if (roeRestante >= tp) cerrar = true, motivo = `TP2 (50%)`;
-        else if (confianza >= 0.60 && roeRestante < -0.5 && Math.abs(roeRestante) > (sl * 0.5)) {
+        else if (confianza >= 0.65 && roeRestante < -0.5 && Math.abs(roeRestante) > (sl * 0.5)) {
           const debeCerrarIA = (side === 'LONG' && prediccionRaw <= 0.3) || (side === 'SHORT' && prediccionRaw >= 0.7);
           if (debeCerrarIA) cerrar = true, motivo = `IA`;
         }
@@ -4775,7 +4837,7 @@ async function ejecutarBacktesting() {
       }
 
       // 🔹 ABRIR NUEVA POSICIÓN
-      if (!posicionAbierta && confianza >= 0.60 && adxActual > adxUmbral) {
+      if (!posicionAbierta && confianza >= 0.65 && adxActual > adxUmbral) {
         let side = null;
         if (modo === 'alcista' && prediccionRaw > 0.5 && alcista) side = 'LONG';
         else if (modo === 'bajista' && prediccionRaw <= 0.5 && bajista) side = 'SHORT';

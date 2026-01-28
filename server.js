@@ -119,9 +119,9 @@ function requireAuth(req, res, next) {
 
 
 // 🔑 URL CORREGIDA: solo Futures Testnet (sin espacios)
-const BINANCE_FUTURES_URL = "https://testnet.binancefuture.com";
+//const BINANCE_FUTURES_URL = "https://testnet.binancefuture.com";
 
-//const BINANCE_MAINNET_URL = "https://fapi.binance.com"; // Solo para klines/ticker (backtesting)
+const BINANCE_MAINNET_URL = "https://fapi.binance.com"; // Solo para klines/ticker (backtesting)
 
 
 
@@ -133,7 +133,7 @@ function signParams(params, secret) {
 
 // ✅ FUNCIÓN PARA OBTENER EL TIEMPO DEL SERVIDOR DE BINANCE
 async function getServerTime() {
-  const res = await fetch(`${BINANCE_FUTURES_URL}/fapi/v1/time`);
+  const res = await fetch(`${BINANCE_MAINNET_URL}/fapi/v1/time`);
   const data = await res.json();
   return data.serverTime;
 }
@@ -142,7 +142,7 @@ async function getServerTime() {
 // 📈 Klines (Mainnet) - CORREGIDO para usar fetch importado
 app.get("/api/binance/klines", async (req, res) => {
   const { symbol = "BTCUSDT", interval = "1m", limit = 100 } = req.query;
-  const url = `${BINANCE_FUTURES_URL}/fapi/v1/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`;
+  const url = `${BINANCE_MAINNET_URL}/fapi/v1/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`;
   try {
     // Usar fetch importado
     const response = await fetch(url);
@@ -160,7 +160,7 @@ app.get("/api/binance/klines", async (req, res) => {
 // 💰 Ticker (Mainnet) - CORREGIDO para usar fetch importado
 app.get("/api/binance/ticker", async (req, res) => {
   const { symbol = "BTCUSDT" } = req.query;
-  const url = `${BINANCE_FUTURES_URL}/fapi/v1/ticker/price?symbol=${symbol}`;
+  const url = `${BINANCE_MAINNET_URL}/fapi/v1/ticker/price?symbol=${symbol}`;
   try {
     // Usar fetch importado
     const response = await fetch(url);
@@ -178,7 +178,7 @@ app.get("/api/binance/ticker", async (req, res) => {
 // 💸 Funding Rate (desde premiumIndex)
 app.get("/api/binance/futures/funding", async (req, res) => {
   const { symbol = "BTCUSDT" } = req.query;
-  const url = `${BINANCE_FUTURES_URL}/fapi/v1/premiumIndex?symbol=${symbol}`;
+  const url = `${BINANCE_MAINNET_URL}/fapi/v1/premiumIndex?symbol=${symbol}`;
   
   try {
     const response = await fetch(url);
@@ -198,7 +198,7 @@ app.get("/api/binance/futures/funding", async (req, res) => {
 // 📈 Open Interest (OI) - exclusivo de futuros
 app.get("/api/binance/futures/open-interest", async (req, res) => {
   const { symbol = "BTCUSDT" } = req.query;
-  const url = `${BINANCE_FUTURES_URL}/fapi/v1/openInterest?symbol=${symbol}`;
+  const url = `${BINANCE_MAINNET_URL}/fapi/v1/openInterest?symbol=${symbol}`;
   
   try {
     const response = await fetch(url);
@@ -273,7 +273,7 @@ app.get("/api/binance/futures/positions", requireAuth,async (req, res) => {
     const recvWindow = 60000;
     const params = { timestamp, recvWindow };
      const signature = signParams(params, apiSecret); // ✅ así
-    const url = `${BINANCE_FUTURES_URL}/fapi/v2/positionRisk?${new URLSearchParams(params)}&signature=${signature}`;
+    const url = `${BINANCE_MAINNET_URL}/fapi/v2/positionRisk?${new URLSearchParams(params)}&signature=${signature}`;
     const response = await fetch(url, { headers: { "X-MBX-APIKEY": req.user.apiKey} });
     const data = await response.json();
     if (data.code) throw new Error(JSON.stringify(data));
@@ -298,7 +298,7 @@ app.post('/api/binance/futures/order', requireAuth, async (req, res) => {
 
   try {
     // ✅ 1. Ajustar precisión (tu lógica ya es buena)
-    const exchangeInfo = await axios.get(`${BINANCE_FUTURES_URL}/fapi/v1/exchangeInfo`);
+    const exchangeInfo = await axios.get(`${BINANCE_MAINNET_URL}/fapi/v1/exchangeInfo`);
     const sym = exchangeInfo.data.symbols.find(s => s.symbol === symbol);
     if (!sym) return res.status(400).json({ msg: 'Símbolo no encontrado' });
 
@@ -332,7 +332,7 @@ app.post('/api/binance/futures/order', requireAuth, async (req, res) => {
     const signature = crypto.createHmac('sha256', req.user.apiSecret).update(queryString).digest('hex');
   
     // ✅ URL final
-    const url = `${BINANCE_FUTURES_URL}/fapi/v1/order?${queryString}&signature=${signature}`;
+    const url = `${BINANCE_MAINNET_URL}/fapi/v1/order?${queryString}&signature=${signature}`;
 
     // ✅ POST sin cuerpo
     const orderRes = await axios.post(url, null, {
@@ -378,7 +378,7 @@ app.post("/api/binance/futures/close-position", requireAuth, async (req, res) =>
     const timestamp1 = await getServerTime(); // <-- CORREGIDO
     const posParams = { timestamp: timestamp1, recvWindow };
     const posSig = signParams(posParams, apiSecret); // ← ¡esta línea DEBE estar!
-    const posUrl = `${BINANCE_FUTURES_URL}/fapi/v2/positionRisk?${new URLSearchParams(posParams)}&signature=${posSig}`;
+    const posUrl = `${BINANCE_MAINNET_URL}/fapi/v2/positionRisk?${new URLSearchParams(posParams)}&signature=${posSig}`;
 
     const posRes = await axios.get(posUrl, { headers: { "X-MBX-APIKEY": req.user.apiKey } });
     const positions = posRes.data;
@@ -386,7 +386,7 @@ app.post("/api/binance/futures/close-position", requireAuth, async (req, res) =>
     if (!pos) return res.status(400).json({ error: "No hay posición abierta" });
 
     // ✅ 2. Obtener stepSize para formatear quantity correctamente
-    const infoRes = await axios.get(`${BINANCE_FUTURES_URL}/fapi/v1/exchangeInfo`);
+    const infoRes = await axios.get(`${BINANCE_MAINNET_URL}/fapi/v1/exchangeInfo`);
     const symInfo = infoRes.data.symbols.find(s => s.symbol === symbol);
     if (!symInfo) return res.status(400).json({ error: "Símbolo no válido" });
 
@@ -423,7 +423,7 @@ app.post("/api/binance/futures/close-position", requireAuth, async (req, res) =>
     const closeSig = crypto.createHmac('sha256', req.user.apiSecret).update(queryString).digest('hex');
 
     // ✅ URL final
-    const closeUrl = `${BINANCE_FUTURES_URL}/fapi/v1/order?${queryString}&signature=${closeSig}`;
+    const closeUrl = `${BINANCE_MAINNET_URL}/fapi/v1/order?${queryString}&signature=${closeSig}`;
 
     // ✅ Enviar orden
     const closeRes = await axios.post(closeUrl, null, { headers: { "X-MBX-APIKEY": req.user.apiKey } });
@@ -483,7 +483,7 @@ app.post('/api/binance/futures/leverage', requireAuth,  async (req, res) => {
     const queryString = new URLSearchParams(params).toString();
     const signature = signParams(params, apiSecret); // ✅ así
 
-    const url = `${BINANCE_FUTURES_URL}/fapi/v1/leverage?${queryString}&signature=${signature}`;
+    const url = `${BINANCE_MAINNET_URL}/fapi/v1/leverage?${queryString}&signature=${signature}`;
 
     const response = await axios.post(url, null, {
       headers: { 'X-MBX-APIKEY': req.user.apiKey}
